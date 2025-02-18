@@ -2,6 +2,7 @@
 #define __CONFIG_H__
 
 #define BAUD_RATE 9600
+
 // PIN
 #define PIN_5V_EN 16
 
