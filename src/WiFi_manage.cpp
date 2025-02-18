@@ -58,3 +58,13 @@ void http_get_example(void) {
     }
 }
 
+void post(String message) {
+    if((wifiMulti.run() == WL_CONNECTED)) {
+
+        HTTPClient http;
+
+        http.begin(SERVER_URL);
+        int httpCode = http.POST(message);
+        USE_SERIAL.println("Message sent");
+    }
+}

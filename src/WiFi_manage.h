@@ -6,5 +6,6 @@
 
 void setup_WiFi(void);
 void http_get_example(void);
+void post(String);
 
 #endif
