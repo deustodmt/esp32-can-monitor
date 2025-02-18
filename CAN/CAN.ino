@@ -17,7 +17,7 @@ void setup()
   pinMode(CAN_SE_PIN, OUTPUT);
   digitalWrite(CAN_SE_PIN, LOW);
 
-  Serial.begin(115200);
+  Serial.begin(9600);
 
   //SD_test();
   Serial.println("Basic Demo - ESP32-Arduino-CAN");
