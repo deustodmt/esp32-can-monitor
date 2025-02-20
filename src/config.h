@@ -24,4 +24,6 @@
 
 //WIFI
 #define SERVER_URL "http://10.33.3.166:8000"
+#define WIFI_SSID "udmt"
+#define WIFI_PASS "udmt2122"
 #endif

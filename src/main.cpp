@@ -7,7 +7,7 @@
 #include <thread.hpp>
 
 using namespace freertos;
-message_queue<int> queue;
+message_queue<uint8_t[]> queue;
 thread SD_thread;
 
 CAN_Manage CAN;
@@ -16,6 +16,7 @@ SD_Manage SD_manage;
 void setup() {
     Serial.begin(BAUD_RATE);
     SD_manage.writeFile("/hello.txt", "Hello ");
+
     // queue.initialize();
     // SD_thread = thread::create([](void*){
     //     while(queue.receive()) {

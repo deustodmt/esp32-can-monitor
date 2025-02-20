@@ -57,19 +57,22 @@ void CAN_Manage::poll() {
       pdTRUE) {
 
     if (rx_frame.FIR.B.FF == CAN_frame_std) {
-      Serial.println("New standard frame");
+      printf("New standard frame");
     } else {
-      Serial.println("New extended frame");
+      printf("New extended frame");
     }
 
-    if (rx_frame.FIR.B.RTR == CAN_RTR) {
+    if (rx_frame.FIR.B.RTR == CAN_RTR) { // Received Remote Transmission Request (we are asked to send data)
       printf(" RTR from 0x%08X, DLC %d\r\n", rx_frame.MsgID,
              rx_frame.FIR.B.DLC);
-    } else {
+    } else { // No RTR, it is a common message
       printf(" from 0x%08X, DLC %d, Data ", rx_frame.MsgID, rx_frame.FIR.B.DLC);
-      for (int i = 0; i < rx_frame.FIR.B.DLC; i++) {
+      for (int i = 0; i < rx_frame.FIR.B.DLC; i++) { // iterate over data using DLC (data length)
         printf("0x%02X ", rx_frame.data.u8[i]);
       }
+      // char string[rx_frame.FIR.B.DLC + 1];
+      // memcpy(string, rx_frame.data.u8, rx_frame.FIR.B.DLC); // copy data to string
+      // string[rx_frame.FIR.B.DLC] = '\0'; // null terminate string
       printf("\n");
     }
   }

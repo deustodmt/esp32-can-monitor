@@ -8,4 +8,14 @@ void setup_WiFi(void);
 void http_get_example(void);
 void post(String);
 
+class WiFi_Manage {
+    private:
+        WiFiMulti wifiMulti;
+    public:
+        WiFi_Manage();
+        void setup();
+        void get_example();
+        void post(String);
+};
+
 #endif
