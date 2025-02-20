@@ -6,11 +6,11 @@
 
 
 void setup() {
-    setup_CAN();
     setup_SD();
-    setup_WiFi();
-    http_get_example();
-    post("TEST MESSAGE");
+    setup_CAN();
+    //setup_WiFi();
+    //http_get_example();
+    //post("TEST MESSAGE");
 }
 
 void loop() {

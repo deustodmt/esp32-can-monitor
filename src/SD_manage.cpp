@@ -1,9 +1,69 @@
 #include "SD_manage.h"
-
+#include "config.h"
 #include "SD.h"
 #include "SPI.h"
+#include "freertos/queue.h"
+#include <vector>
 
 
+const int BUFFER_SIZE = 100;
+QueueHandle_t messageQueue;
+std::vector<String> buffer;
+
+void writeBufferToSD() {
+    File file = SD.open("/logs.txt", FILE_APPEND);
+    if (!file) {
+        Serial.println("Error al abrir el archivo en SD");
+        return;
+    }
+
+    for (const auto &msg : buffer) {
+        file.println(msg);
+    }
+    
+    file.close();
+    buffer.clear();
+    Serial.println("Datos escritos en SD");
+}
+
+void sdTask(void *parameter) {
+    char receivedMessage[256];
+
+    while (true) {
+        // Espera un mensaje de la cola (bloqueante hasta que haya uno)
+        if (xQueueReceive(messageQueue, &receivedMessage, portMAX_DELAY)) {
+            buffer.push_back(String(receivedMessage));
+
+            // Escribir en SD si el buffer llega a 100 mensajes
+            if (buffer.size() >= BUFFER_SIZE) {
+                writeBufferToSD();
+            }
+        }
+    }
+}
+
+void setup_SD() {
+    if (!SD.begin()) {
+        Serial.println("No se pudo inicializar la SD");
+        return;
+    }
+
+    // Crear cola con 100 mensajes de 256 bytes cada uno
+    messageQueue = xQueueCreate(100, sizeof(char) * 256);
+
+    // Crear tarea en FreeRTOS para la SD
+    xTaskCreatePinnedToCore(
+        sdTask,      // Función de la tarea
+        "SD_Task",   // Nombre de la tarea
+        4096,        // Tamaño de la pila
+        NULL,        // Parámetro
+        1,           // Prioridad
+        NULL,        // Identificador de la tarea
+        1            // Ejecutar en el núcleo 1 (ESP32 tiene 2 núcleos)
+    );
+
+    Serial.println("✅ SD inicializada");
+}
 
 void listDir(fs::FS &fs, const char * dirname, uint8_t levels){
     Serial.printf("Listing directory: %s\n", dirname);
@@ -162,7 +222,7 @@ void testFileIO(fs::FS &fs, const char * path){
     file.close();
 }
 
-void setup_SD(void) {
+void test_SD(void) {
     SPI.begin(SD_SCLK, SD_MISO, SD_MOSI, SD_CS);
 
     if(!SD.begin(SD_CS)){
