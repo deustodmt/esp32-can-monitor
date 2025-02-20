@@ -1,30 +1,22 @@
-#include <Arduino.h>
+#include "CAN_manage.h"
 #include "config.h"
 #include <HardwareSerial.h>
-#include <ESP32CAN.h>
-#include <CAN_config.h>
+#include <message_queue.hpp>
 
-CAN_device_t CAN_cfg;             // CAN Config
-unsigned long previousMillis = 0; // will store last time a CAN Message was send
-const int interval = 1000;        // interval at which send CAN Messages (milliseconds)
-const int rx_queue_size = 10;     // Receive Queue size
+CAN_device_t CAN_cfg;
 
-void setup_CAN()
-{
+CAN_Manage::CAN_Manage() {
   pinMode(PIN_5V_EN, OUTPUT);
   digitalWrite(PIN_5V_EN, HIGH);
 
   pinMode(CAN_SE_PIN, OUTPUT);
   digitalWrite(CAN_SE_PIN, LOW);
 
-  Serial.begin(BAUD_RATE);
-
-  //SD_test();
-  Serial.println("Basic Demo - ESP32-Arduino-CAN");
-  CAN_cfg.speed = CAN_SPEED_250KBPS;
-  CAN_cfg.tx_pin_id = GPIO_NUM_27;
-  CAN_cfg.rx_pin_id = GPIO_NUM_26;
+  CAN_cfg.speed = CAN_SPEED;
+  CAN_cfg.tx_pin_id = TX_PIN;
+  CAN_cfg.rx_pin_id = RX_PIN;
   CAN_cfg.rx_queue = xQueueCreate(rx_queue_size, sizeof(CAN_frame_t));
+
   // Init CAN Module
   ESP32Can.CANInit();
 
@@ -34,43 +26,8 @@ void setup_CAN()
   // put your setup code here, to run once:
 }
 
-void poll_CAN()
-{
-
-  CAN_frame_t rx_frame;
-
-  unsigned long currentMillis = millis();
-
-  // Receive next CAN frame from queue
-  if (xQueueReceive(CAN_cfg.rx_queue, &rx_frame, 3 * portTICK_PERIOD_MS) == pdTRUE)
-  {
-
-    if (rx_frame.FIR.B.FF == CAN_frame_std)
-    {
-      printf("New standard frame");
-    }
-    else
-    {
-      printf("New extended frame");
-    }
-
-    if (rx_frame.FIR.B.RTR == CAN_RTR)
-    {
-      printf(" RTR from 0x%08X, DLC %d\r\n", rx_frame.MsgID, rx_frame.FIR.B.DLC);
-    }
-    else
-    {
-      printf(" from 0x%08X, DLC %d, Data ", rx_frame.MsgID, rx_frame.FIR.B.DLC);
-      for (int i = 0; i < rx_frame.FIR.B.DLC; i++)
-      {
-        printf("0x%02X ", rx_frame.data.u8[i]);
-      }
-      printf("\n");
-    }
-  }
-  // Send CAN Message
-  if (currentMillis - previousMillis >= interval)
-  {
+void CAN_Manage::sendMessage() {
+  if (currentMillis - previousMillis >= interval) {
     previousMillis = currentMillis;
     CAN_frame_t tx_frame;
     tx_frame.FIR.B.FF = CAN_frame_std;
@@ -87,5 +44,33 @@ void poll_CAN()
 
     ESP32Can.CANWriteFrame(&tx_frame);
     Serial.println("CAN send done");
+  }
+}
+
+void CAN_Manage::poll() {
+
+  CAN_frame_t rx_frame;
+
+  // Receive next CAN frame from queue
+  
+  if (xQueueReceive(CAN_cfg.rx_queue, &rx_frame, 3 * portTICK_PERIOD_MS) ==
+      pdTRUE) {
+
+    if (rx_frame.FIR.B.FF == CAN_frame_std) {
+      Serial.println("New standard frame");
+    } else {
+      Serial.println("New extended frame");
+    }
+
+    if (rx_frame.FIR.B.RTR == CAN_RTR) {
+      printf(" RTR from 0x%08X, DLC %d\r\n", rx_frame.MsgID,
+             rx_frame.FIR.B.DLC);
+    } else {
+      printf(" from 0x%08X, DLC %d, Data ", rx_frame.MsgID, rx_frame.FIR.B.DLC);
+      for (int i = 0; i < rx_frame.FIR.B.DLC; i++) {
+        printf("0x%02X ", rx_frame.data.u8[i]);
+      }
+      printf("\n");
+    }
   }
 }

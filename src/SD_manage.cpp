@@ -1,11 +1,36 @@
 #include "SD_manage.h"
-
 #include "SD.h"
 #include "SPI.h"
+#include <message_queue.hpp>
 
+SD_Manage::SD_Manage() {
+    SPI.begin(SD_SCLK, SD_MISO, SD_MOSI, SD_CS);
 
+    if(!SD.begin(SD_CS)){
+        Serial.println("Card Mount Failed");
+        return;
+    }
+    uint8_t cardType = SD.cardType();
 
-void listDir(fs::FS &fs, const char * dirname, uint8_t levels){
+    if(cardType == CARD_NONE){
+        Serial.println("No SD card attached");
+        return;
+    }
+
+    Serial.print("SD Card Type: ");
+    if(cardType == CARD_MMC){
+        Serial.println("MMC");
+    } else if(cardType == CARD_SD){
+        Serial.println("SDSC");
+    } else if(cardType == CARD_SDHC){
+        Serial.println("SDHC");
+    } else {
+        Serial.println("UNKNOWN");
+    }
+
+}
+
+void SD_Manage::listDir(fs::FS &fs, const char * dirname, uint8_t levels){
     Serial.printf("Listing directory: %s\n", dirname);
 
     File root = fs.open(dirname);
@@ -36,7 +61,7 @@ void listDir(fs::FS &fs, const char * dirname, uint8_t levels){
     }
 }
 
-void createDir(fs::FS &fs, const char * path){
+void SD_Manage::createDir(fs::FS &fs, const char * path){
     Serial.printf("Creating Dir: %s\n", path);
     if(fs.mkdir(path)){
         Serial.println("Dir created");
@@ -45,7 +70,7 @@ void createDir(fs::FS &fs, const char * path){
     }
 }
 
-void removeDir(fs::FS &fs, const char * path){
+void SD_Manage::removeDir(fs::FS &fs, const char * path){
     Serial.printf("Removing Dir: %s\n", path);
     if(fs.rmdir(path)){
         Serial.println("Dir removed");
@@ -54,7 +79,7 @@ void removeDir(fs::FS &fs, const char * path){
     }
 }
 
-void readFile(fs::FS &fs, const char * path){
+void SD_Manage::readFile(fs::FS &fs, const char * path){
     Serial.printf("Reading file: %s\n", path);
 
     File file = fs.open(path);
@@ -70,7 +95,8 @@ void readFile(fs::FS &fs, const char * path){
     file.close();
 }
 
-void writeFile(fs::FS &fs, const char * path, const char * message){
+void SD_Manage::writeFile(const char * path, const char * message){
+    fs::SDFS fs = SD;
     Serial.printf("Writing file: %s\n", path);
 
     File file = fs.open(path, FILE_WRITE);
@@ -86,7 +112,7 @@ void writeFile(fs::FS &fs, const char * path, const char * message){
     file.close();
 }
 
-void appendFile(fs::FS &fs, const char * path, const char * message){
+void SD_Manage::appendFile(fs::FS &fs, const char * path, const char * message){
     Serial.printf("Appending to file: %s\n", path);
 
     File file = fs.open(path, FILE_APPEND);
@@ -102,7 +128,7 @@ void appendFile(fs::FS &fs, const char * path, const char * message){
     file.close();
 }
 
-void renameFile(fs::FS &fs, const char * path1, const char * path2){
+void SD_Manage::renameFile(fs::FS &fs, const char * path1, const char * path2){
     Serial.printf("Renaming file %s to %s\n", path1, path2);
     if (fs.rename(path1, path2)) {
         Serial.println("File renamed");
@@ -111,7 +137,7 @@ void renameFile(fs::FS &fs, const char * path1, const char * path2){
     }
 }
 
-void deleteFile(fs::FS &fs, const char * path){
+void SD_Manage::deleteFile(fs::FS &fs, const char * path){
     Serial.printf("Deleting file: %s\n", path);
     if(fs.remove(path)){
         Serial.println("File deleted");
@@ -120,7 +146,7 @@ void deleteFile(fs::FS &fs, const char * path){
     }
 }
 
-void testFileIO(fs::FS &fs, const char * path){
+void SD_Manage::testFileIO(fs::FS &fs, const char * path){
     File file = fs.open(path);
     static uint8_t buf[512];
     size_t len = 0;
@@ -162,31 +188,8 @@ void testFileIO(fs::FS &fs, const char * path){
     file.close();
 }
 
-void setup_SD(void) {
-    SPI.begin(SD_SCLK, SD_MISO, SD_MOSI, SD_CS);
-
-    if(!SD.begin(SD_CS)){
-        Serial.println("Card Mount Failed");
-        return;
-    }
-    uint8_t cardType = SD.cardType();
-
-    if(cardType == CARD_NONE){
-        Serial.println("No SD card attached");
-        return;
-    }
-
-    Serial.print("SD Card Type: ");
-    if(cardType == CARD_MMC){
-        Serial.println("MMC");
-    } else if(cardType == CARD_SD){
-        Serial.println("SDSC");
-    } else if(cardType == CARD_SDHC){
-        Serial.println("SDHC");
-    } else {
-        Serial.println("UNKNOWN");
-    }
-
+void SD_Manage::exampleSD(void) {
+    
     uint64_t cardSize = SD.cardSize() / (1024 * 1024);
     Serial.printf("SD Card Size: %lluMB\n", cardSize);
 
@@ -195,7 +198,7 @@ void setup_SD(void) {
     listDir(SD, "/", 0);
     removeDir(SD, "/mydir");
     listDir(SD, "/", 2);
-    writeFile(SD, "/hello.txt", "Hello ");
+    writeFile("/hello.txt", "Hello ");
     appendFile(SD, "/hello.txt", "World!\n");
     readFile(SD, "/hello.txt");
     deleteFile(SD, "/foo.txt");
