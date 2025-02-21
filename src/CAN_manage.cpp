@@ -2,6 +2,7 @@
 #include "config.h"
 #include <HardwareSerial.h>
 #include <message_queue.hpp>
+#include <time.h>
 
 CAN_device_t CAN_cfg;
 
@@ -50,6 +51,7 @@ void CAN_Manage::sendMessage() {
 void CAN_Manage::poll() {
 
   CAN_frame_t rx_frame;
+  uint8_t message[rx_frame.FIR.B.DLC + 4]; // binarry message: milliseconds/can_frame
 
   // Receive next CAN frame from queue
   
@@ -67,7 +69,16 @@ void CAN_Manage::poll() {
              rx_frame.FIR.B.DLC);
     } else { // No RTR, it is a common message
       printf(" from 0x%08X, DLC %d, Data ", rx_frame.MsgID, rx_frame.FIR.B.DLC);
+
+      long currentTime = millis();
+      
+      message[0] = (uint8_t) (currentTime & 0xFF);            //We take the less significant byte
+      message[1] = (uint8_t) ((currentTime >> 8) & 0xFF);     //We displace the current time millis
+      message[2] = (uint8_t) ((currentTime >> 16) & 0xFF);
+      message[3] = (uint8_t) ((currentTime >> 24) & 0xFF);
+
       for (int i = 0; i < rx_frame.FIR.B.DLC; i++) { // iterate over data using DLC (data length)
+        message[i + 4] = rx_frame.data.u8[i];
         printf("0x%02X ", rx_frame.data.u8[i]);
       }
       // char string[rx_frame.FIR.B.DLC + 1];
