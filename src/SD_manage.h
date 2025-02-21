@@ -7,8 +7,16 @@
 #define SD_CS      13
 
 #include "FS.h"
+#include "config.h"
+#include <message_queue.hpp>
+#include <thread.hpp>
+
+extern freertos::message_queue<uint8_t[CAN_MSG_SIZE]> queue;   // CAN Message Queue
 
 class SD_Manage {
+    private:
+        freertos::thread SD_thread;
+        void writeBinary(const char* path, uint8_t message[12]);
     public:
         SD_Manage();
         void exampleSD(void);

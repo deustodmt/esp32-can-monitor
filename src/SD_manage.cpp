@@ -1,7 +1,11 @@
 #include "SD_manage.h"
 #include "SD.h"
 #include "SPI.h"
-#include <message_queue.hpp>
+#include <stdio.h>
+#include <stdint.h>
+
+freertos::thread SD_thread;
+extern freertos::message_queue<uint8_t[CAN_MSG_SIZE]> queue;   // CAN Message Queue
 
 SD_Manage::SD_Manage() {
     SPI.begin(SD_SCLK, SD_MISO, SD_MOSI, SD_CS);
@@ -28,6 +32,26 @@ SD_Manage::SD_Manage() {
         Serial.println("UNKNOWN");
     }
 
+    this->deleteFile(SD, "/log.bin");           // Delete file if it exists to start fresh
+
+    SD_thread = freertos::thread::create([](void*){
+        uint8_t message[CAN_MSG_SIZE];
+        while(queue.size() > 30) {              // If queue size is greater than 30 we start writing
+            FILE* file;
+            file = fopen("/log.bin", "ab");
+            while(queue.receive(&message)){      // Writes a binary file with CAN messages   
+                Serial.print("Queue received ");
+                if (file == NULL) {
+                    Serial.println("Failed to open file for writing");
+                    return;
+                }
+                if(fwrite(message, sizeof(uint8_t), CAN_MSG_SIZE, file)){
+                    Serial.println("Message appended");
+                } else Serial.println("Append failed");
+            }
+            fclose(file);
+        }
+    },nullptr,1,2000);
 }
 
 void SD_Manage::listDir(fs::FS &fs, const char * dirname, uint8_t levels){
