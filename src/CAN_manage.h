@@ -2,9 +2,11 @@
 #define __CAN_MANAGE_H__
 #include <Arduino.h>
 #include <CAN_config.h>
+#include <message_queue.hpp>
 #include <ESP32CAN.h>
 
 extern CAN_device_t CAN_cfg;             // CAN Config
+extern freertos::message_queue<uint8_t[12]> queue;
 
 class CAN_Manage {
     private:

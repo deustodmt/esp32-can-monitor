@@ -1,9 +1,10 @@
 #include "CAN_manage.h"
 #include "config.h"
 #include <HardwareSerial.h>
-#include <message_queue.hpp>
+#include <time.h>
 
 CAN_device_t CAN_cfg;
+freertos::message_queue<uint8_t[CAN_MSG_SIZE]> queue;
 
 CAN_Manage::CAN_Manage() {
   pinMode(PIN_5V_EN, OUTPUT);
@@ -50,30 +51,45 @@ void CAN_Manage::sendMessage() {
 void CAN_Manage::poll() {
 
   CAN_frame_t rx_frame;
+  uint8_t message[CAN_MSG_SIZE]; // binary message: milliseconds/can_frame
 
   // Receive next CAN frame from queue
   
   if (xQueueReceive(CAN_cfg.rx_queue, &rx_frame, 3 * portTICK_PERIOD_MS) ==
       pdTRUE) {
 
-    if (rx_frame.FIR.B.FF == CAN_frame_std) {
-      printf("New standard frame");
-    } else {
-      printf("New extended frame");
-    }
+    // if (rx_frame.FIR.B.FF == CAN_frame_std) {
+    //   printf("New standard frame");
+    // } else {
+    //   printf("New extended frame");
+    // }
 
     if (rx_frame.FIR.B.RTR == CAN_RTR) { // Received Remote Transmission Request (we are asked to send data)
       printf(" RTR from 0x%08X, DLC %d\r\n", rx_frame.MsgID,
              rx_frame.FIR.B.DLC);
     } else { // No RTR, it is a common message
       printf(" from 0x%08X, DLC %d, Data ", rx_frame.MsgID, rx_frame.FIR.B.DLC);
+
+      long currentTime = millis();
+
+      printf("Current time: %ld\n", currentTime);
+      
+      message[3] = (uint8_t) (currentTime & 0xFF);            //We take the less significant byte
+      message[2] = (uint8_t) ((currentTime >> 8) & 0xFF);     //We displace the current time millis
+      message[1] = (uint8_t) ((currentTime >> 16) & 0xFF);
+      message[0] = (uint8_t) ((currentTime >> 24) & 0xFF);
+
       for (int i = 0; i < rx_frame.FIR.B.DLC; i++) { // iterate over data using DLC (data length)
+        message[i + 4] = rx_frame.data.u8[i];
         printf("0x%02X ", rx_frame.data.u8[i]);
       }
+
+      if(queue.send(message)){
+        // printf("Message sent to the queue\n");
+      } else printf("ERROR sending message to the queue\n");
       // char string[rx_frame.FIR.B.DLC + 1];
       // memcpy(string, rx_frame.data.u8, rx_frame.FIR.B.DLC); // copy data to string
       // string[rx_frame.FIR.B.DLC] = '\0'; // null terminate string
-      printf("\n");
     }
   }
 }
