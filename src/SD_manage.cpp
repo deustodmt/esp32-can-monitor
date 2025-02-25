@@ -32,26 +32,30 @@ SD_Manage::SD_Manage() {
         Serial.println("UNKNOWN");
     }
 
-    this->deleteFile(SD, "/log.bin");           // Delete file if it exists to start fresh
+    // this->deleteFile(SD, "/log.bin");           // Delete file if it exists to start fresh
 
     SD_thread = freertos::thread::create([](void*){
-        uint8_t message[CAN_MSG_SIZE];
-        while(queue.size() > 30) {              // If queue size is greater than 30 we start writing
-            FILE* file;
-            file = fopen("/log.bin", "ab");
-            while(queue.receive(&message)){      // Writes a binary file with CAN messages   
-                Serial.print("Queue received ");
-                if (file == NULL) {
-                    Serial.println("Failed to open file for writing");
-                    return;
+        while(true){
+            uint8_t message[CAN_MSG_SIZE];
+            //while(queue.size() > 30) {              // If queue size is greater than 30 we start writing
+                fs::File file;
+                file = SD.open("/log.bin", "ab");
+                while(queue.receive(&message)){      // Writes a binary file with CAN messages   
+                    if (file == NULL) {
+                        Serial.println("Failed to open file for writing");
+                        return;
+                    }
+                    if(file.write(message, CAN_MSG_SIZE)){
+                        // printf("Message appended\n");
+                    } else printf("Append failed\n");
+                    file.flush();
                 }
-                if(fwrite(message, sizeof(uint8_t), CAN_MSG_SIZE, file)){
-                    Serial.println("Message appended");
-                } else Serial.println("Append failed");
-            }
-            fclose(file);
+                file.close();
+            //}
+            delay(100);
         }
-    },nullptr,1,2000);
+    },nullptr,1,4096);
+    SD_thread.start();
 }
 
 void SD_Manage::listDir(fs::FS &fs, const char * dirname, uint8_t levels){

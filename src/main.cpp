@@ -11,7 +11,8 @@ extern message_queue<uint8_t[12]> queue;
 // thread SD_thread;
 
 CAN_Manage CAN_manage;
-SD_Manage SD_manage;
+SD_Manage* sd_manage;
+
 
 Adafruit_NeoPixel strip(1, 4, NEO_GRB + NEO_KHZ800);
 
@@ -23,8 +24,7 @@ void setup() {
     strip.setPixelColor(0, strip.Color(255, 0, 0));  
     strip.show();
     Serial.begin(BAUD_RATE);
-    SD_manage.writeFile("/hello.txt", "Hello ");
-    
+    sd_manage = new SD_Manage();
     // queue.initialize();
     // SD_thread = thread::create([](void*){
     //     while(queue.receive()) {
