@@ -6,3 +6,8 @@ Velocidad de transmisión CAN -> 1Mbit/s
 - https://media.kellycontroller.com/new/Sinusoidal-Wave-Controller-KLS-D-8080I-8080IPS-Broadcast-CAN-Protocol.pdf
 ### BMS (Dally BMS)
 - https://robu.in/wp-content/uploads/2021/10/Daly-CAN-Communications-Protocol-V1.0-1.pdf
+
+## Colores LED:
+- Verde:    CAN -> SD
+- Azul:     SD -> WiFi
+- Blanco:   CAN -> WiFi

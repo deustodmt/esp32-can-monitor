@@ -20,6 +20,7 @@
 #define SD_SCLK_PIN 14
 #define SD_CS_PIN 13
 
+#define BUTTON_PIN 0
 #define WS2812_PIN 4
 
 //CAN MESSAGE SIZE
@@ -29,4 +30,11 @@
 #define SERVER_URL "http://10.33.3.166:8000"
 #define WIFI_SSID "udmt"
 #define WIFI_PASS "udmt2122"
+
+// MQTT
+#define MQTT_SERVER "10.33.3.144"
+#define MQTT_PORT 2000
+#define MQTT_USER "admin"
+#define MQTT_PASSWD "admin"
+
 #endif

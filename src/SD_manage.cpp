@@ -8,36 +8,39 @@ freertos::thread SD_thread;
 extern freertos::message_queue<uint8_t[CAN_MSG_SIZE]> queue;   // CAN Message Queue
 
 SD_Manage::SD_Manage() {
+    printf("*** SD card initializing\n");
+
     SPI.begin(SD_SCLK, SD_MISO, SD_MOSI, SD_CS);
 
     if(!SD.begin(SD_CS)){
-        Serial.println("Card Mount Failed");
+        Serial.println("ERROR: Card Mount Failed");
         return;
     }
     uint8_t cardType = SD.cardType();
 
     if(cardType == CARD_NONE){
-        Serial.println("No SD card attached");
+        Serial.println("ERROR: No SD card attached");
         return;
     }
 
-    Serial.print("SD Card Type: ");
-    if(cardType == CARD_MMC){
-        Serial.println("MMC");
-    } else if(cardType == CARD_SD){
-        Serial.println("SDSC");
-    } else if(cardType == CARD_SDHC){
-        Serial.println("SDHC");
-    } else {
-        Serial.println("UNKNOWN");
-    }
+    // Serial.print("SD Card Type: ");
+    // if(cardType == CARD_MMC){
+    //     Serial.println("MMC");
+    // } else if(cardType == CARD_SD){
+    //     Serial.println("SDSC");
+    // } else if(cardType == CARD_SDHC){
+    //     Serial.println("SDHC");
+    // } else {
+    //     Serial.println("UNKNOWN");
+    // }
 
     // this->deleteFile(SD, "/log.bin");           // Delete file if it exists to start fresh
 
     SD_thread = freertos::thread::create([](void*){
         while(true){
             uint8_t message[CAN_MSG_SIZE];
-            //while(queue.size() > 30) {              // If queue size is greater than 30 we start writing
+            printf("Queue size: %d\n", queue.size());
+            while(queue.size() > 2) {              // If queue size is greater than 30 we start writing
                 fs::File file;
                 file = SD.open("/log.bin", "ab");
                 while(queue.receive(&message)){      // Writes a binary file with CAN messages   
@@ -51,7 +54,7 @@ SD_Manage::SD_Manage() {
                     file.flush();
                 }
                 file.close();
-            //}
+            }
             delay(100);
         }
     },nullptr,1,4096);
