@@ -19,7 +19,7 @@ class CAN_Manage {
         const int rx_queue_size = 10;     // Receive Queue size
   
     public:
-        CAN_Manage();
+        CAN_Manage(QueueHandle_t rx_queue);
         void setup();
         void sendMessage();
         void poll();

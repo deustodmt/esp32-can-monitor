@@ -6,7 +6,7 @@
 CAN_device_t CAN_cfg;
 freertos::message_queue<uint8_t[CAN_MSG_SIZE]> queue;
 
-CAN_Manage::CAN_Manage() {
+CAN_Manage::CAN_Manage(QueueHandle_t rx_queue) {
   pinMode(PIN_5V_EN, OUTPUT);
   digitalWrite(PIN_5V_EN, HIGH);
 
@@ -16,8 +16,7 @@ CAN_Manage::CAN_Manage() {
   CAN_cfg.speed = CAN_SPEED;
   CAN_cfg.tx_pin_id = TX_PIN;
   CAN_cfg.rx_pin_id = RX_PIN;
-  CAN_cfg.rx_queue = xQueueCreate(rx_queue_size, sizeof(CAN_frame_t));
-
+  CAN_cfg.rx_queue = rx_queue;
   // Init CAN Module
   ESP32Can.CANInit();
 
@@ -49,6 +48,7 @@ void CAN_Manage::sendMessage() {
 }
 
 void CAN_Manage::poll() {
+  printf("CAN bus polling\n");
 
   CAN_frame_t rx_frame;
   uint8_t message[CAN_MSG_SIZE]; // binary message: milliseconds/can_frame

@@ -19,6 +19,7 @@ class SD_Manage {
         void writeBinary(const char* path, uint8_t message[12]);
     public:
         SD_Manage();
+        void writeQueueToSD();
         void exampleSD(void);
         void listDir(fs::FS &fs, const char * dirname, uint8_t levels);
         void createDir(fs::FS &fs, const char * path);

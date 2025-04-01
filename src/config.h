@@ -32,7 +32,7 @@
 #define WIFI_PASS "udmt2122"
 
 // MQTT
-#define MQTT_SERVER "10.33.3.144"
+#define MQTT_SERVER "10.33.3.111"
 #define MQTT_PORT 2000
 #define MQTT_USER "admin"
 #define MQTT_PASSWD "admin"

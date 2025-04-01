@@ -4,21 +4,21 @@
 #include <stdio.h>
 #include <stdint.h>
 
-freertos::thread SD_thread;
-extern freertos::message_queue<uint8_t[CAN_MSG_SIZE]> queue;   // CAN Message Queue
-
-SD_Manage::SD_Manage() {
+SD_Manage::SD_Manage()
+{
     printf("*** SD card initializing\n");
 
     SPI.begin(SD_SCLK, SD_MISO, SD_MOSI, SD_CS);
 
-    if(!SD.begin(SD_CS)){
+    if (!SD.begin(SD_CS))
+    {
         Serial.println("ERROR: Card Mount Failed");
         return;
     }
     uint8_t cardType = SD.cardType();
 
-    if(cardType == CARD_NONE){
+    if (cardType == CARD_NONE)
+    {
         Serial.println("ERROR: No SD card attached");
         return;
     }
@@ -35,54 +35,63 @@ SD_Manage::SD_Manage() {
     // }
 
     // this->deleteFile(SD, "/log.bin");           // Delete file if it exists to start fresh
-
-    SD_thread = freertos::thread::create([](void*){
-        while(true){
-            uint8_t message[CAN_MSG_SIZE];
-            printf("Queue size: %d\n", queue.size());
-            while(queue.size() > 2) {              // If queue size is greater than 30 we start writing
-                fs::File file;
-                file = SD.open("/log.bin", "ab");
-                while(queue.receive(&message)){      // Writes a binary file with CAN messages   
-                    if (file == NULL) {
-                        Serial.println("Failed to open file for writing");
-                        return;
-                    }
-                    if(file.write(message, CAN_MSG_SIZE)){
-                        // printf("Message appended\n");
-                    } else printf("Append failed\n");
-                    file.flush();
-                }
-                file.close();
-            }
-            delay(100);
-        }
-    },nullptr,1,4096);
-    SD_thread.start();
 }
 
-void SD_Manage::listDir(fs::FS &fs, const char * dirname, uint8_t levels){
+void SD_Manage::writeQueueToSD()
+{
+    uint8_t message[CAN_MSG_SIZE];
+    printf("Queue size: %d\n", queue.size());
+    fs::File file;
+    file = SD.open("/log.bin", "ab");
+
+    // while (queue.receive(&message))
+    // { // Writes a binary file with CAN messages
+    //     if (file == NULL)
+    //     {
+    //         Serial.println("Failed to open file for writing");
+    //         return;
+    //     }
+    //     if (file.write(message, CAN_MSG_SIZE))
+    //     {
+    //         // printf("Message appended\n");
+    //     }
+    //     else
+    //         printf("Append failed\n");
+    //     file.flush();
+    // }
+    file.close();
+}
+
+void SD_Manage::listDir(fs::FS &fs, const char *dirname, uint8_t levels)
+{
     Serial.printf("Listing directory: %s\n", dirname);
 
     File root = fs.open(dirname);
-    if(!root){
+    if (!root)
+    {
         Serial.println("Failed to open directory");
         return;
     }
-    if(!root.isDirectory()){
+    if (!root.isDirectory())
+    {
         Serial.println("Not a directory");
         return;
     }
 
     File file = root.openNextFile();
-    while(file){
-        if(file.isDirectory()){
+    while (file)
+    {
+        if (file.isDirectory())
+        {
             Serial.print("  DIR : ");
             Serial.println(file.name());
-            if(levels){
-                listDir(fs, file.path(), levels -1);
+            if (levels)
+            {
+                listDir(fs, file.path(), levels - 1);
             }
-        } else {
+        }
+        else
+        {
             Serial.print("  FILE: ");
             Serial.print(file.name());
             Serial.print("  SIZE: ");
@@ -92,104 +101,137 @@ void SD_Manage::listDir(fs::FS &fs, const char * dirname, uint8_t levels){
     }
 }
 
-void SD_Manage::createDir(fs::FS &fs, const char * path){
+void SD_Manage::createDir(fs::FS &fs, const char *path)
+{
     Serial.printf("Creating Dir: %s\n", path);
-    if(fs.mkdir(path)){
+    if (fs.mkdir(path))
+    {
         Serial.println("Dir created");
-    } else {
+    }
+    else
+    {
         Serial.println("mkdir failed");
     }
 }
 
-void SD_Manage::removeDir(fs::FS &fs, const char * path){
+void SD_Manage::removeDir(fs::FS &fs, const char *path)
+{
     Serial.printf("Removing Dir: %s\n", path);
-    if(fs.rmdir(path)){
+    if (fs.rmdir(path))
+    {
         Serial.println("Dir removed");
-    } else {
+    }
+    else
+    {
         Serial.println("rmdir failed");
     }
 }
 
-void SD_Manage::readFile(fs::FS &fs, const char * path){
+void SD_Manage::readFile(fs::FS &fs, const char *path)
+{
     Serial.printf("Reading file: %s\n", path);
 
     File file = fs.open(path);
-    if(!file){
+    if (!file)
+    {
         Serial.println("Failed to open file for reading");
         return;
     }
 
     Serial.print("Read from file: ");
-    while(file.available()){
+    while (file.available())
+    {
         Serial.write(file.read());
     }
     file.close();
 }
 
-void SD_Manage::writeFile(const char * path, const char * message){
+void SD_Manage::writeFile(const char *path, const char *message)
+{
     fs::SDFS fs = SD;
     Serial.printf("Writing file: %s\n", path);
 
     File file = fs.open(path, FILE_WRITE);
-    if(!file){
+    if (!file)
+    {
         Serial.println("Failed to open file for writing");
         return;
     }
-    if(file.print(message)){
+    if (file.print(message))
+    {
         Serial.println("File written");
-    } else {
+    }
+    else
+    {
         Serial.println("Write failed");
     }
     file.close();
 }
 
-void SD_Manage::appendFile(fs::FS &fs, const char * path, const char * message){
+void SD_Manage::appendFile(fs::FS &fs, const char *path, const char *message)
+{
     Serial.printf("Appending to file: %s\n", path);
 
     File file = fs.open(path, FILE_APPEND);
-    if(!file){
+    if (!file)
+    {
         Serial.println("Failed to open file for appending");
         return;
     }
-    if(file.print(message)){
+    if (file.print(message))
+    {
         Serial.println("Message appended");
-    } else {
+    }
+    else
+    {
         Serial.println("Append failed");
     }
     file.close();
 }
 
-void SD_Manage::renameFile(fs::FS &fs, const char * path1, const char * path2){
+void SD_Manage::renameFile(fs::FS &fs, const char *path1, const char *path2)
+{
     Serial.printf("Renaming file %s to %s\n", path1, path2);
-    if (fs.rename(path1, path2)) {
+    if (fs.rename(path1, path2))
+    {
         Serial.println("File renamed");
-    } else {
+    }
+    else
+    {
         Serial.println("Rename failed");
     }
 }
 
-void SD_Manage::deleteFile(fs::FS &fs, const char * path){
+void SD_Manage::deleteFile(fs::FS &fs, const char *path)
+{
     Serial.printf("Deleting file: %s\n", path);
-    if(fs.remove(path)){
+    if (fs.remove(path))
+    {
         Serial.println("File deleted");
-    } else {
+    }
+    else
+    {
         Serial.println("Delete failed");
     }
 }
 
-void SD_Manage::testFileIO(fs::FS &fs, const char * path){
+void SD_Manage::testFileIO(fs::FS &fs, const char *path)
+{
     File file = fs.open(path);
     static uint8_t buf[512];
     size_t len = 0;
     uint32_t start = millis();
     uint32_t end = start;
-    if(file){
+    if (file)
+    {
         len = file.size();
         size_t flen = len;
         start = millis();
-        while(len){
+        while (len)
+        {
             size_t toRead = len;
-            if(toRead > 512){
+            if (toRead > 512)
+            {
                 toRead = 512;
             }
             file.read(buf, toRead);
@@ -198,20 +240,23 @@ void SD_Manage::testFileIO(fs::FS &fs, const char * path){
         end = millis() - start;
         Serial.printf("%u bytes read for %u ms\n", flen, end);
         file.close();
-    } else {
+    }
+    else
+    {
         Serial.println("Failed to open file for reading");
     }
 
-
     file = fs.open(path, FILE_WRITE);
-    if(!file){
+    if (!file)
+    {
         Serial.println("Failed to open file for writing");
         return;
     }
 
     size_t i;
     start = millis();
-    for(i=0; i<2048; i++){
+    for (i = 0; i < 2048; i++)
+    {
         file.write(buf, 512);
     }
     end = millis() - start;
@@ -219,8 +264,9 @@ void SD_Manage::testFileIO(fs::FS &fs, const char * path){
     file.close();
 }
 
-void SD_Manage::exampleSD(void) {
-    
+void SD_Manage::exampleSD(void)
+{
+
     uint64_t cardSize = SD.cardSize() / (1024 * 1024);
     Serial.printf("SD Card Size: %lluMB\n", cardSize);
 
@@ -238,5 +284,4 @@ void SD_Manage::exampleSD(void) {
     testFileIO(SD, "/test.txt");
     Serial.printf("Total space: %lluMB\n", SD.totalBytes() / (1024 * 1024));
     Serial.printf("Used space: %lluMB\n", SD.usedBytes() / (1024 * 1024));
-
 }

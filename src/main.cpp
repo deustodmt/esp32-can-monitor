@@ -17,14 +17,9 @@ typedef enum
 
 STATES current_state = CAN_TO_SD;
 
-using namespace freertos;
-extern message_queue<uint8_t[12]> queue;
+QueueHandle_t canMessageQueue;
 
-xTaskHandle CAN_task_handle;
-xTaskHandle WiFi_task_handle;
-xTaskHandle SD_task_handle;
-
-CAN_Manage CAN_manage;
+CAN_Manage *CAN_manage;
 SD_Manage *sd_manage;
 WiFi_Manage *wifi_manage = NULL;
 
@@ -86,23 +81,24 @@ void setup()
     setup_LED(); // Initialize LED light library
     setup_button();
 
+    canMessageQueue = xQueueCreate(50, sizeof(uint8_t[CAN_MSG_SIZE]));
+    if (canMessageQueue == NULL)
+    {
+        Serial.println("Error creating queue");
+        while (1) { // Blink LED in red forever
+            strip.setPixelColor(0, strip.Color(255, 0, 0));
+            strip.show();
+            vTaskDelay(500);
+            strip.setPixelColor(0, strip.Color(0, 0, 0));
+            strip.show();
+            vTaskDelay(500);
+        }
+        return;
+    }
+    CAN_manage = new CAN_Manage(canMessageQueue);
+
     printf("Arrancado\n");
 
-    // sd_manage = new SD_Manage();
-
-    // queue.initialize();
-    // SD_thread = thread::create([](void*){
-    //     while(queue.receive()) {
-    //         Serial.print("Queue received ");
-    //         Serial.println(i);
-    //     }
-    // },nullptr,1,2000);
-    // SD_thread.start();
-
-    // setup_WiFi();
-    //  http_get_example();
-    //  post("TEST MESSAGE");
-    // printf("COriiendo en: %d", xPortGetCoreID()); // corre en el core 1
 }
 
 void change_mode(STATES new_mode)
@@ -120,8 +116,9 @@ void loop()
         {
             sd_manage = new SD_Manage();
         }
-        CAN_manage.poll();
-        
+        CAN_manage->poll();
+        printf("Number of messages in queue: %d\n", uxQueueMessagesWaiting(canMessageQueue));
+        sd_manage->writeQueueToSD();
         break;
     case CAN_TO_WIFI:
         if (wifi_manage == NULL)
@@ -129,7 +126,7 @@ void loop()
             wifi_manage = new WiFi_Manage();
         }
 
-        CAN_manage.poll();
+        CAN_manage->poll();
         break;
     case DUMP_VIA_WIFI:
         if (wifi_manage == NULL)
