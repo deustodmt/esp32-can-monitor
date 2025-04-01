@@ -26,7 +26,7 @@ xTaskHandle SD_task_handle;
 
 CAN_Manage CAN_manage;
 SD_Manage *sd_manage;
-WiFi_Manage *wifi_manage;
+WiFi_Manage *wifi_manage = NULL;
 
 Adafruit_NeoPixel strip(1, 4, NEO_GRB + NEO_KHZ800);
 OneButton button;
@@ -68,9 +68,11 @@ void setup_button()
     });
 }
 
-static void CAN_Task(void* pvParameters) {
-    CAN_Manage* canInstance = (CAN_Manage*)pvParameters;
-    while(1) {
+static void CAN_Task(void *pvParameters)
+{
+    CAN_Manage *canInstance = (CAN_Manage *)pvParameters;
+    while (1)
+    {
         canInstance->poll();
         // Opcional: añadir un pequeño retraso
         vTaskDelay(pdMS_TO_TICKS(10));
@@ -84,7 +86,7 @@ void setup()
     setup_LED(); // Initialize LED light library
     setup_button();
 
-    xTaskCreate(CAN_Task, "Task CAN", 4096, &CAN_manage, 2, &CAN_task_handle);
+    printf("Arrancado\n");
 
     // sd_manage = new SD_Manage();
 
@@ -114,16 +116,27 @@ void loop()
     switch (current_state)
     {
     case CAN_TO_SD:
+        if (sd_manage == NULL)
+        {
+            sd_manage = new SD_Manage();
+        }
         CAN_manage.poll();
+        
         break;
     case CAN_TO_WIFI:
-        wifi_manage = new WiFi_Manage();
+        if (wifi_manage == NULL)
+        {
+            wifi_manage = new WiFi_Manage();
+        }
+
         CAN_manage.poll();
-        printf("");
         break;
     case DUMP_VIA_WIFI:
+        if (wifi_manage == NULL)
+        {
+            wifi_manage = new WiFi_Manage();
+        }
         wifi_manage->mqtt_test();
-        printf("");
         break;
     }
 }

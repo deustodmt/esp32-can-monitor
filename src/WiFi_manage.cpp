@@ -84,8 +84,9 @@ void WiFi_Manage::post(String message)
 
 void WiFi_Manage::mqtt_test(void)
 {
-  char str[16];
-  sprintf(str, "%u", random(100));
+  // char str[16];
+  // sprintf(str, "%u", random(100));
 
-  client.publish("test_topic", str);
+  client.publish("test_topic", "0CF11E0500000195f1621e0a05000000C3010000");
+  sleep(1);
 }
