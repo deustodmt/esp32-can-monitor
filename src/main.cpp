@@ -17,11 +17,11 @@ typedef enum
 
 STATES current_state = CAN_TO_SD;
 
-QueueHandle_t canMessageQueue;
+xQueueHandle canMessageQueue;
 
 CAN_Manage *CAN_manage;
 SD_Manage *sd_manage;
-WiFi_Manage *wifi_manage = NULL;
+WiFi_Manage *wifi_manage;
 
 Adafruit_NeoPixel strip(1, 4, NEO_GRB + NEO_KHZ800);
 OneButton button;
@@ -63,14 +63,16 @@ void setup_button()
     });
 }
 
-static void CAN_Task(void *pvParameters)
+void setupSDThread(void *pvParameters)
 {
-    CAN_Manage *canInstance = (CAN_Manage *)pvParameters;
+    const TickType_t xDelay = 500 / portTICK_PERIOD_MS;
+
+    SD_Manage *sd_manager = (SD_Manage *)pvParameters;
+    
     while (1)
     {
-        canInstance->poll();
-        // Opcional: añadir un pequeño retraso
-        vTaskDelay(pdMS_TO_TICKS(10));
+        sd_manager->writeQueueToSD();
+        vTaskDelay(xDelay);
     }
 }
 
@@ -82,10 +84,12 @@ void setup()
     setup_button();
 
     canMessageQueue = xQueueCreate(50, sizeof(uint8_t[CAN_MSG_SIZE]));
+
     if (canMessageQueue == NULL)
     {
         Serial.println("Error creating queue");
-        while (1) { // Blink LED in red forever
+        while (1)
+        { // Blink LED in red forever
             strip.setPixelColor(0, strip.Color(255, 0, 0));
             strip.show();
             vTaskDelay(500);
@@ -95,14 +99,13 @@ void setup()
         }
         return;
     }
+
     CAN_manage = new CAN_Manage(canMessageQueue);
+    sd_manage = new SD_Manage(canMessageQueue);
+
+    xTaskCreatePinnedToCore(setupSDThread, "setupSDThread", 4096, (void *)sd_manage, 5, NULL, 1);
 
     printf("Arrancado\n");
-
-}
-
-void change_mode(STATES new_mode)
-{
 }
 
 void loop()
@@ -112,13 +115,8 @@ void loop()
     switch (current_state)
     {
     case CAN_TO_SD:
-        if (sd_manage == NULL)
-        {
-            sd_manage = new SD_Manage();
-        }
         CAN_manage->poll();
         printf("Number of messages in queue: %d\n", uxQueueMessagesWaiting(canMessageQueue));
-        sd_manage->writeQueueToSD();
         break;
     case CAN_TO_WIFI:
         if (wifi_manage == NULL)

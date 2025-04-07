@@ -15,10 +15,10 @@ extern freertos::message_queue<uint8_t[CAN_MSG_SIZE]> queue;   // CAN Message Qu
 
 class SD_Manage {
     private:
-        freertos::thread SD_thread;
+        xQueueHandle queue;
         void writeBinary(const char* path, uint8_t message[12]);
     public:
-        SD_Manage();
+        SD_Manage(xQueueHandle queue);
         void writeQueueToSD();
         void exampleSD(void);
         void listDir(fs::FS &fs, const char * dirname, uint8_t levels);

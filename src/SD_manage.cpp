@@ -4,8 +4,9 @@
 #include <stdio.h>
 #include <stdint.h>
 
-SD_Manage::SD_Manage()
+SD_Manage::SD_Manage(xQueueHandle queue)
 {
+    this->queue = queue;
     printf("*** SD card initializing\n");
 
     SPI.begin(SD_SCLK, SD_MISO, SD_MOSI, SD_CS);
@@ -40,25 +41,25 @@ SD_Manage::SD_Manage()
 void SD_Manage::writeQueueToSD()
 {
     uint8_t message[CAN_MSG_SIZE];
-    printf("Queue size: %d\n", queue.size());
     fs::File file;
     file = SD.open("/log.bin", "ab");
+    printf("Number of messages in queue: %d\n", uxQueueMessagesWaiting(this->queue));
 
-    // while (queue.receive(&message))
-    // { // Writes a binary file with CAN messages
-    //     if (file == NULL)
-    //     {
-    //         Serial.println("Failed to open file for writing");
-    //         return;
-    //     }
-    //     if (file.write(message, CAN_MSG_SIZE))
-    //     {
-    //         // printf("Message appended\n");
-    //     }
-    //     else
-    //         printf("Append failed\n");
-    //     file.flush();
-    // }
+    while (xQueueReceive(this->queue, &message, 0) == pdTRUE)
+    { // Writes a binary file with CAN messages
+        if (file == NULL)
+        {
+            Serial.println("Failed to open file for writing");
+            return;
+        }
+        if (file.write(message, CAN_MSG_SIZE))
+        {
+            printf("Message appended\n");
+        }
+        else
+            printf("Append failed\n");
+        file.flush();
+    }
     file.close();
 }
 

@@ -6,7 +6,7 @@
 CAN_device_t CAN_cfg;
 freertos::message_queue<uint8_t[CAN_MSG_SIZE]> queue;
 
-CAN_Manage::CAN_Manage(QueueHandle_t rx_queue) {
+CAN_Manage::CAN_Manage(xQueueHandle rx_queue) {
   pinMode(PIN_5V_EN, OUTPUT);
   digitalWrite(PIN_5V_EN, HIGH);
 
