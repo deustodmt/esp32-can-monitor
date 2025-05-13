@@ -1,8 +1,5 @@
 #include "Arduino.h"
 #include "config.h"
-#include "SD_manage.h"
-#include "CAN_manage.h"
-#include "WiFi_manage.h"
 #include <Adafruit_NeoPixel.h>
 #include <OneButton.h>
 
@@ -14,12 +11,6 @@ typedef enum
 } STATES;
 
 STATES current_state = CAN_TO_SD;
-
-xQueueHandle canMessageQueue;
-
-CAN_Manage *CAN_manage;
-SD_Manage *sd_manage;
-WiFi_Manage *wifi_manage;
 
 Adafruit_NeoPixel strip(1, 4, NEO_GRB + NEO_KHZ800);
 OneButton button;
@@ -61,75 +52,14 @@ void setup_button()
     });
 }
 
-void setupSDThread(void *pvParameters)
-{
-    const TickType_t xDelay = 500 / portTICK_PERIOD_MS;
-
-    SD_Manage *sd_manager = (SD_Manage *)pvParameters;
-    
-    while (1)
-    {
-        sd_manager->writeQueueToSD();
-        vTaskDelay(xDelay);
-    }
-}
-
 void setup()
 {
     Serial.begin(BAUD_RATE);
 
-    setup_LED(); // Initialize LED light library
     setup_button();
-
-    canMessageQueue = xQueueCreate(50, sizeof(uint8_t[CAN_MSG_SIZE]));
-
-    if (canMessageQueue == NULL)
-    {
-        Serial.println("Error creating queue");
-        while (1)
-        { // Blink LED in red forever
-            strip.setPixelColor(0, strip.Color(255, 0, 0));
-            strip.show();
-            vTaskDelay(500);
-            strip.setPixelColor(0, strip.Color(0, 0, 0));
-            strip.show();
-            vTaskDelay(500);
-        }
-        return;
-    }
-
-    CAN_manage = new CAN_Manage(canMessageQueue);
-    sd_manage = new SD_Manage(canMessageQueue);
-
-    xTaskCreatePinnedToCore(setupSDThread, "setupSDThread", 4096, (void *)sd_manage, 5, NULL, 1);
-
-    printf("Arrancado\n");
+    setup_LED();
 }
 
 void loop()
 {
-    button.tick();
-
-    switch (current_state)
-    {
-    case CAN_TO_SD:
-        CAN_manage->poll();
-        printf("Number of messages in queue: %d\n", uxQueueMessagesWaiting(canMessageQueue));
-        break;
-    case CAN_TO_WIFI:
-        if (wifi_manage == NULL)
-        {
-            wifi_manage = new WiFi_Manage();
-        }
-
-        CAN_manage->poll();
-        break;
-    case DUMP_VIA_WIFI:
-        if (wifi_manage == NULL)
-        {
-            wifi_manage = new WiFi_Manage();
-        }
-        wifi_manage->mqtt_test();
-        break;
-    }
 }
