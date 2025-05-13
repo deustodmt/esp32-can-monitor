@@ -3,10 +3,8 @@
 #include "SD_manage.h"
 #include "CAN_manage.h"
 #include "WiFi_manage.h"
-#include <message_queue.hpp>
 #include <Adafruit_NeoPixel.h>
 #include <OneButton.h>
-#include <freertos_core.hpp>
 
 typedef enum
 {

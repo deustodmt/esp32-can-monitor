@@ -2,11 +2,9 @@
 #define __CAN_MANAGE_H__
 #include <Arduino.h>
 #include <CAN_config.h>
-#include <message_queue.hpp>
 #include <ESP32CAN.h>
 
 extern CAN_device_t CAN_cfg;             // CAN Config
-extern freertos::message_queue<uint8_t[12]> queue;
 
 class CAN_Manage {
     private:
@@ -17,10 +15,10 @@ class CAN_Manage {
         unsigned long currentMillis = millis();
         const int interval = 1000;        // interval at which send CAN Messages (milliseconds)
         const int rx_queue_size = 10;     // Receive Queue size
+        QueueHandle_t SD_queue;
   
     public:
         CAN_Manage(QueueHandle_t rx_queue);
-        void setup();
         void sendMessage();
         void poll();
 };

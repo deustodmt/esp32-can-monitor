@@ -25,19 +25,6 @@ SD_Manage::SD_Manage(xQueueHandle queue)
         while(1) vTaskDelay(xDelay);
         return;
     }
-
-    // Serial.print("SD Card Type: ");
-    // if(cardType == CARD_MMC){
-    //     Serial.println("MMC");
-    // } else if(cardType == CARD_SD){
-    //     Serial.println("SDSC");
-    // } else if(cardType == CARD_SDHC){
-    //     Serial.println("SDHC");
-    // } else {
-    //     Serial.println("UNKNOWN");
-    // }
-
-    // this->deleteFile(SD, "/log.bin");           // Delete file if it exists to start fresh
 }
 
 void SD_Manage::writeQueueToSD()

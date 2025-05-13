@@ -24,7 +24,7 @@
 #define WS2812_PIN 4
 
 //CAN MESSAGE SIZE
-#define CAN_MSG_SIZE 12
+#define CAN_MSG_SIZE 20
 
 //WIFI
 #define SERVER_URL "http://10.33.3.166:8000"

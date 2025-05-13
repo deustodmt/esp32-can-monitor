@@ -8,10 +8,6 @@
 
 #include "FS.h"
 #include "config.h"
-#include <message_queue.hpp>
-#include <thread.hpp>
-
-extern freertos::message_queue<uint8_t[CAN_MSG_SIZE]> queue;   // CAN Message Queue
 
 class SD_Manage {
     private:
