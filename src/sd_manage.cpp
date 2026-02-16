@@ -1,5 +1,5 @@
 #include "sd_manage.h"
-
+#include "config.h"
 
 SD_Manage::SD_Manage(xQueueHandle queue) : queue(queue)
 {
@@ -26,10 +26,38 @@ SD_Manage::SD_Manage(xQueueHandle queue) : queue(queue)
 
 void SD_Manage::write_queue_to_sd()
 {
-    if (this->is_mounted == false) {
+    if (this->is_mounted == false)
+    {
         return;
     }
 
+    if (uxQueueMessagesWaiting(this->queue) > 20)
+    {
+        uint8_t message[CAN_MSG_SIZE];
+        fs::File file;
+        file = SD.open("/log.bin", "ab");
+
+        while (xQueueReceive(this->queue, &message, 0) == pdTRUE)
+        { // Writes a binary file with CAN messages
+            if (file == NULL)
+            {
+                Serial.println("Failed to open file for writing!!!\n");
+                return;
+            }
+            if (file.write(message, CAN_MSG_SIZE))
+            {
+                printf("Message written to SD\n");
+            }
+            else
+                printf("Append failed\n");
+            file.flush();
+        }
+        file.close();
+    }
+    else
+    {
+        printf("less than 20 messages on queue, waiting\n");
+    }
 }
 void SD_Manage::delete_sd_file()
 {
