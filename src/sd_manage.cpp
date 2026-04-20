@@ -5,60 +5,67 @@ SD_Manage::SD_Manage(xQueueHandle queue) : queue(queue)
 {
     printf("*** SD card initializing\n");
 
-    SPI.begin(SD_SCLK, SD_MISO, SD_MOSI, SD_CS);
+    SPI.begin(SD_SCLK_PIN, SD_MISO_PIN, SD_MOSI_PIN, SD_CS_PIN);
 
-    if (!SD.begin(SD_CS))
+    if (!SD.begin(SD_CS_PIN))
     {
         Serial.println("ERROR: Card Mount Failed");
+        this->is_mounted = false;
         return;
     }
-    uint8_t cardType = SD.cardType();
 
+    uint8_t cardType = SD.cardType();
     if (cardType == CARD_NONE)
     {
         Serial.println("ERROR: No SD card attached");
-        const TickType_t xDelay = 500 / portTICK_PERIOD_MS;
-        while (1)
-            vTaskDelay(xDelay);
+        this->is_mounted = false;
         return;
     }
+
+    this->is_mounted = true;
+    printf("SD Inicializada correctamente.\n");
 }
 
 void SD_Manage::write_queue_to_sd()
 {
-    if (this->is_mounted == false)
-    {
+    if (!this->is_mounted)
         return;
-    }
 
+    // Escribir solo cuando haya un bloque consistente (ej: 20 mensajes)
     if (uxQueueMessagesWaiting(this->queue) > 20)
     {
-        uint8_t message[CAN_MSG_SIZE];
-        fs::File file;
-        file = SD.open("/log.bin", "ab");
 
-        while (xQueueReceive(this->queue, &message, 0) == pdTRUE)
-        { // Writes a binary file with CAN messages
-            if (file == NULL)
-            {
-                Serial.println("Failed to open file for writing!!!\n");
-                return;
-            }
-            if (file.write(message, CAN_MSG_SIZE))
-            {
-                printf("Message written to SD\n");
-            }
-            else
-                printf("Append failed\n");
-            file.flush();
+        // FILE_APPEND añade al final del binario en el ESP32
+        fs::File file = SD.open("/log.bin", FILE_APPEND);
+
+        if (!file)
+        {
+            Serial.println("ERROR: Failed to open file for writing!!!");
+            return;
         }
-        file.close();
-    }
-    else
-    {
-        printf("less than 20 messages on queue, waiting\n");
+
+        uint8_t message[CAN_MSG_SIZE];
+        int messages_written = 0;
+
+        // Vaciamos la cola a toda velocidad
+        while (xQueueReceive(this->queue, message, 0) == pdTRUE)
+        {
+            file.write(message, CAN_MSG_SIZE);
+            messages_written++;
+        }
+
+        file.close(); // Cerramos y forzamos el guardado en la memoria Flash
+
+        // Debug ligero para comprobar que sigue vivo
+        // printf("Bloque SD guardado: %d tramas\n", messages_written);
     }
 }
+
 void SD_Manage::delete_sd_file()
 {
+    if (this->is_mounted && SD.exists("/log.bin"))
+    {
+        SD.remove("/log.bin");
+        printf("Archivo log.bin eliminado.\n");
+    }
 }
