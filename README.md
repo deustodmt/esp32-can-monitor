@@ -57,7 +57,7 @@ Bytes 12-19: payload     (8 bytes, zero-padded)
 #define MQTT_TOPIC    "test_topic"
 #define MQTT_USER     "admin"
 #define MQTT_PASSWD   "admin"
-#define SERVER_URL    "http://10.42.0.1:8000"  // No utilizado actualmente
+#define SERVER_URL    "http://10.42.0.1:8000"
 ```
 
 Ajustar la IP al host que sirva `esp32-server` (por ejemplo, la IP asignada por NetworkManager en la red compartida).
