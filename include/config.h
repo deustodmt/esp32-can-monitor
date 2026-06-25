@@ -1,7 +1,7 @@
 #ifndef __CONFIG_H__
 #define __CONFIG_H__
 
-#define BAUD_RATE 115200
+#define BAUD_RATE 9600
 
 #define BMS_TIMEOUT_MS 2000
 #define BMS_CAN_TIMEOUT_MS 1000
@@ -11,24 +11,24 @@
 // ==========================================
 
 // CAN BUS (TJA1051T)
-#define CAN_TX_PIN 39
-#define CAN_RX_PIN 40
-// #define CAN_SE_PIN XX // Omitido si tu transceiver no usa pin de
+#define CAN_TX_PIN 27
+#define CAN_RX_PIN 26
+#define CAN_SE_PIN 23
 // Standby/Silent
 
 // DETECCIÓN DE CARGA Y CONTROL
-#define CHARGE_DETECT_PIN 1
-#define HV_SWITCH_PIN 2
+#define CHARGE_DETECT_PIN 5
+#define HV_SWITCH_PIN 18
 
 // MÓDULO SD (SPI)
-#define SD_MISO_PIN 4
-#define SD_SCLK_PIN 5
-#define SD_CS_PIN 6
-#define SD_MOSI_PIN 7
+#define SD_MISO_PIN 2
+#define SD_SCLK_PIN 14
+#define SD_CS_PIN 13
+#define SD_MOSI_PIN 15
 
 // INTERFAZ DE USUARIO (Mantenemos los de la placa DevKit)
 #define BUTTON_PIN 0
-#define WS2812_PIN 48
+#define WS2812_PIN 4
 
 // ==========================================
 // CONFIGURACIÓN DE TRAMAS Y RED

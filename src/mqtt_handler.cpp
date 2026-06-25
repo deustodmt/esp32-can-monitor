@@ -13,26 +13,27 @@ extern void          packForServer(const uint8_t *raw_msg, char *hex_out);
 
 void wifiPublishTask(void *pvParameters)
 {
-    printf("WiFi: conectando a %s...\n", WIFI_SSID);
+    printf("[WIFI] conectando a %s...\n", WIFI_SSID);
     WiFi.begin(WIFI_SSID, WIFI_PASS);
     while (WiFi.status() != WL_CONNECTED)
         vTaskDelay(pdMS_TO_TICKS(500));
-    printf("WiFi conectado: %s\n", WiFi.localIP().toString().c_str());
+    printf("[WIFI] conectado: %s\n", WiFi.localIP().toString().c_str());
 
     mqttClient.setServer(MQTT_SERVER, MQTT_PORT);
 
     uint8_t raw_msg[CAN_MSG_SIZE];
     char    hex_payload[41];
+    uint32_t mqtt_pub_count = 0;
 
     for (;;)
     {
         if (!mqttClient.connected())
         {
-            printf("MQTT: conectando a %s:%d...\n", MQTT_SERVER, MQTT_PORT);
+            printf("[MQTT] conectando a %s:%d...\n", MQTT_SERVER, MQTT_PORT);
             if (mqttClient.connect("ESP32Monitor", MQTT_USER, MQTT_PASSWD))
-                printf("MQTT: conectado\n");
+                printf("[MQTT] conectado\n");
             else {
-                printf("MQTT: fallo (estado %d), reintentando en 5s\n",
+                printf("[MQTT] fallo (estado %d), reintentando en 5s\n",
                        mqttClient.state());
                 vTaskDelay(pdMS_TO_TICKS(5000));
                 continue;
@@ -45,9 +46,13 @@ void wifiPublishTask(void *pvParameters)
         {
             while (xQueueReceive(wifi_queue, raw_msg, 0) == pdTRUE)
             {
+                mqtt_pub_count++;
                 packForServer(raw_msg, hex_payload);
+                if (mqtt_pub_count % 10 == 0)
+                    printf("[MQTT] publish #%lu: %s\n", mqtt_pub_count, hex_payload);
+
                 if (!mqttClient.publish(MQTT_TOPIC, hex_payload))
-                    printf("MQTT: publish falló (buffer lleno?)\n");
+                    printf("[MQTT] publish falló (buffer lleno?) #%lu\n", mqtt_pub_count);
             }
         }
 

@@ -1,6 +1,6 @@
 # esp32-can-monitor
 
-Firmware para ESP32-S3 que captura tramas del bus CAN, las almacena en tarjeta SD o las transmite en tiempo real a un servidor MQTT. Incluye un VCU (Vehicle Control Unit) que gestiona la máquina de estados de la BMS (Battery Management System) y envía comandos a la ECU del motor. Forma parte del sistema de telemetría junto con **esp32-server**.
+Firmware para ESP32 que captura tramas del bus CAN, las almacena en tarjeta SD o las transmite en tiempo real a un servidor MQTT. Incluye un VCU (Vehicle Control Unit) que gestiona la máquina de estados de la BMS (Battery Management System) y envía comandos a la ECU del motor. Forma parte del sistema de telemetría junto con **esp32-server**.
 
 ## Descripción general
 
@@ -12,12 +12,12 @@ Además del datalogging, el firmware implementa una máquina de estados del VCU 
 
 | Componente | Conexión |
 |---|---|
-| Transceptor CAN (TJA1051T) | TX→GPIO39, RX→GPIO40 |
-| Tarjeta SD (SPI) | MISO→GPIO4, MOSI→GPIO7, SCLK→GPIO5, CS→GPIO6 |
+| Transceptor CAN (TJA1051T) | TX→GPIO27, RX→GPIO26, SE→GPIO23 |
+| Tarjeta SD (SPI) | MISO→GPIO2, MOSI→GPIO15, SCLK→GPIO14, CS→GPIO13 |
 | Botón (contacto HV) | GPIO0 (pull-up interno) |
-| LED NeoPixel (WS2812) | GPIO48 |
-| Detección de carga | GPIO1 (pull-down) |
-| Contacto HV | GPIO2 (pull-down) |
+| LED NeoPixel (WS2812) | GPIO4 |
+| Detección de carga | GPIO5 (pull-down) |
+| Contacto HV | GPIO18 (pull-down) |
 
 ## Modos de operación
 
@@ -52,7 +52,7 @@ Bytes 12-19: payload     (8 bytes, zero-padded)
 ## Configuración (`include/config.h`)
 
 ```cpp
-#define BAUD_RATE 115200
+#define BAUD_RATE 9600
 
 #define BMS_TIMEOUT_MS 2000
 #define BMS_CAN_TIMEOUT_MS 1000
@@ -76,7 +76,7 @@ Ajustar la IP al host que sirva `esp32-server` (por ejemplo, la IP asignada por 
 | CAN ID | Descripción |
 |---|---|
 | `0x462` | BMS_TX_STATE_3 — Estado actual de la BMS (interceptado automáticamente) |
-| `0x360` | BMS_TX — Control BMS (enviados por el VCU) |
+| `0x360` | BMS_RX_CTRL_1 — Control BMS (enviados por el VCU) |
 | `0x1000000A` | BMS_CMD — Comando BMS (enviados por el VCU) |
 | `0x1000000B` | BMS_STATUS — Estado BMS |
 | `0x0C00000A` | ECU_CMD — Comando de par al motor (exterior, 8 bytes) |
@@ -106,9 +106,13 @@ El firmware incluye una máquina de estados del VCU (Vehicle Control Unit) que g
 - En `ESP_DRIVE`: envía `BMS_HV_READY`. Si se desconecta HV → `ESP_TO_SHUTDOWN`, si aparece cargador → `ESP_EMERGENCY_TORQUE_CUT`
 - En `ESP_FAULT`: envía `BMS_HV_SHUTDOWN` de forma continua, requiere reinicio para recuperarse
 
-**Watchdog CAN:** Si se pierde la señal CAN de la BMS por más de `BMS_CAN_TIMEOUT_MS` (1s), el VCU entra en `ESP_FAULT` y corta el par de la ECU si estaba en marcha.
+**Watchdog CAN:** Si se pierde la señal CAN de la BMS por más de `BMS_CAN_TIMEOUT_MS` (1s), el VCU entra en `ESP_FAULT` y corta el par de la ECU si estaba en marcha. El timeout se imprime en ms con el tag `[VCU] ERROR CRÍTICO`.
 
-**Comandos a la BMS:** Las tramas de control BMS (`0x360`) incluyen un contador E2E de 4 bits (0-15), CRC-8 SAE-J1850 calculado sobre los bytes 1-7, y campos de control de contactores (4 contactores), IMD, y limpieza de fallos.
+**Comandos a la BMS:** Las tramas de control BMS (`0x360`) incluyen un contador E2E de 4 bits (0-15), CRC-8 SAE-J1850 calculado sobre los bytes 1-7, y campos de control de contactores (4 contactores), IMD, y limpieza de fallos. Cada envío se loguea con `[BMS_CMD]`.
+
+**Torque a ECU:** El torque se envía como 2 bytes little-endian en un frame extendido. Cada envío se confirma con `[ECU_TORQUE] TX OK` o `[ECU_TORQUE] TX FAILED`.
+
+**Tramas CAN recibidas:** Cada trama se loguea con `[CAN] RX` incluyendo timestamp, ID, DLC y payload. Las tramas de `BMS_TX_STATE_3` (0x462) se decodifican y muestran el estado de la BMS, DIOs y HVIL.
 
 ## Configuración de BMS
 
@@ -126,24 +130,46 @@ El firmware incluye una máquina de estados del VCU (Vehicle Control Unit) que g
 - `driver/twai.h` — driver CAN nativo del ESP32 (parte del framework Arduino-ESP32)
 - `cantools` — header generado (incluido en `include/nx0002_sts01_a01.h`) para desempaquetado de tramas BMS
 
-## Compilar y flashear
+## Depuración
 
-```bash
-# Con PlatformIO CLI
-pio run --target upload
+El firmware incluye prints de depuración extensivos en todas las tareas. Cada mensaje usa un tag de prefijo para identificar el origen:
 
-# O desde VS Code con la extensión PlatformIO
+| Tag | Origen |
+|---|---|
+| `[MAIN]` | Inicio, heap, heartbeat |
+| `[CAN]` | Recepción de tramas CAN |
+| `[BMS_CMD]` | Envío de comandos a la BMS |
+| `[ECU_TORQUE]` | Envío de torque a la ECU |
+| `[VCU]` | Transiciones de estado del VCU |
+| `[WIFI]` | Conexión WiFi |
+| `[MQTT]` | Conexión y publicación MQTT |
+| `[SD]` | Inicialización y escritura en SD |
+| `[DUMP]` | Volcado SD→MQTT |
+| `[BTN]` | Pulsaciones del botón |
+
+**Heartbeat:** Cada 5 segundos, `loop()` imprime un heartbeat con: conteo, heap libre, estado actual, estado VCU, estado BMS, y longitudes de las colas CAN y WiFi.
+
+**Ejemplo de salida de heartbeat:**
+```
+[MAIN] Heartbeat #1: FreeHeap=131072, State=0, VCU=1, BMS=3, CAN_Q=45, WiFi_Q=0
 ```
 
-La plataforma objetivo es `esp32-s3-devkitc-1`. Ver `platformio.ini` para detalles.
+**Ejemplo de inicialización de SD:**
+```
+[SD] Initializing...
+[SD] Card type: SD, Size: 7489 MB
+[SD] SD Inicializada correctamente.
+```
+
+La plataforma objetivo es `esp32dev`. Ver `platformio.ini` para detalles.
 
 ## Tareas FreeRTOS
 
 | Tarea | Core | Prioridad | Función |
 |---|---|---|---|
-| `CAN_Read` | 0 | 5 | Lee tramas del bus CAN y las encola |
+| `CAN_Read` | 0 | 5 | Lee tramas del bus CAN y las encola en CAN_QUEUE o WIFI_QUEUE |
 | `VCU_State` | 1 | 4 | Máquina de estados del VCU — gestiona BMS y ECU |
-| `SD_Write` | 1 | 3 | Escribe la cola en SD o realiza el volcado MQTT |
+| `SD_Write` | 1 | 3 | Escribe la cola en SD o realiza el volcado MQTT según estado |
 | `WiFi_Pub` | 1 | 2 | Mantiene la conexión MQTT y publica tramas en tiempo real |
 
 ## Relación con esp32-server

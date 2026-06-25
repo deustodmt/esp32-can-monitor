@@ -11,6 +11,7 @@ class SD_Manage
 private:
     xQueueHandle queue;
     bool is_mounted;
+    uint32_t sd_msg_count;
 
 public:
     SD_Manage(xQueueHandle queue);

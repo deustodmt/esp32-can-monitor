@@ -14,6 +14,8 @@ extern PubSubClient  mqttClient;
 
 void sdWriteTask(void *pvParameters)
 {
+    static uint32_t sd_write_count = 0;
+
     for (;;)
     {
         if (current_state == CAN_TO_SD)
@@ -21,15 +23,20 @@ void sdWriteTask(void *pvParameters)
             sdManager->write_queue_to_sd();
             vTaskDelay(pdMS_TO_TICKS(50));
         }
+        else if (current_state == CAN_TO_WIFI)
+        {
+            printf("[SD] CAN_TO_WIFI: forwarding CAN messages via WiFi queue\n");
+            vTaskDelay(pdMS_TO_TICKS(10));
+        }
         else if (current_state == DUMP_VIA_WIFI)
         {
             if (!mqttClient.connected()) {
-                printf("DUMP_VIA_WIFI: esperando conexión MQTT...\n");
+                printf("[DUMP] esperando conexión MQTT...\n");
                 vTaskDelay(pdMS_TO_TICKS(1000));
                 continue;
             }
 
-            printf("DUMP_VIA_WIFI: iniciando volcado de SD...\n");
+            printf("[DUMP] iniciando volcado de SD...\n");
 
             fs::File file = SD.open("/log.bin", FILE_READ);
             if (!file) {
@@ -81,7 +88,7 @@ void sdWriteTask(void *pvParameters)
                 hex_payload[40] = '\0';
 
                 if (!mqttClient.publish(MQTT_TOPIC, hex_payload)) {
-                    printf("DUMP_VIA_WIFI: ERROR - Fallo al publicar el mensaje %d. Abortando...\n", count);
+                    printf("[DUMP] ERROR - Fallo al publicar el mensaje %d. Abortando...\n", count);
                     all_sent_ok = false;
                     break;
                 }
@@ -90,20 +97,24 @@ void sdWriteTask(void *pvParameters)
                 count++;
 
                 if (count % 50 == 0)
+                    printf("[DUMP] Progress: %d messages sent\n", count);
+
+                if (count % 200 == 0)
                     vTaskDelay(pdMS_TO_TICKS(10));
             }
 
             file.close();
 
             if (all_sent_ok && count > 0) {
-                printf("DUMP_VIA_WIFI: Volcado completo con éxito — %d tramas enviadas.\n", count);
+                printf("[DUMP] Volcado completo con éxito — %d tramas enviadas.\n", count);
                 sdManager->delete_sd_file();
             } else if (!all_sent_ok) {
-                printf("DUMP_VIA_WIFI: Hubo errores. NO se ha borrado log.bin para evitar pérdida de datos.\n");
+                printf("[DUMP] Hubo errores. NO se ha borrado log.bin para evitar pérdida de datos.\n");
             } else {
-                printf("DUMP_VIA_WIFI: El archivo estaba vacío.\n");
+                printf("[DUMP] El archivo estaba vacío.\n");
             }
 
+            printf("[DUMP] State: %d -> %d\n", DUMP_VIA_WIFI, CAN_TO_SD);
             current_state = CAN_TO_SD;
         }
         else
