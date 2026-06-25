@@ -6,12 +6,6 @@
 #include "SD.h"
 #include "SPI.h"
 
-
-#define SD_MISO    2
-#define SD_MOSI    15
-#define SD_SCLK    14
-#define SD_CS      13
-
 class SD_Manage
 {
 private:

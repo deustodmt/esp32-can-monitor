@@ -1,21 +1,23 @@
 # esp32-can-monitor
 
-Firmware para ESP32 que captura tramas del bus CAN y las almacena en tarjeta SD o las transmite en tiempo real a un servidor MQTT. Forma parte del sistema de telemetría junto con **esp32-server**.
+Firmware para ESP32-S3 que captura tramas del bus CAN, las almacena en tarjeta SD o las transmite en tiempo real a un servidor MQTT. Incluye un VCU (Vehicle Control Unit) que gestiona la máquina de estados de la BMS (Battery Management System) y envía comandos a la ECU del motor. Forma parte del sistema de telemetría junto con **esp32-server**.
 
 ## Descripción general
 
 El firmware utiliza el driver nativo TWAI del ESP32 en modo escucha pasiva (listen-only) a 250 kbps. Un botón físico permite cambiar entre tres modos de operación, indicados por el LED NeoPixel. Las tramas se empaquetan en un formato binario de 20 bytes y se pueden guardar en SD o publicar vía MQTT según el modo activo.
 
+Además del datalogging, el firmware implementa una máquina de estados del VCU que interactúa con la BMS: envía comandos de control a la BMS y recibe su estado, gestiona precargas, transiciones de estado HV (High Voltage), y controla el par de la ECU del motor.
+
 ## Hardware requerido
 
 | Componente | Conexión |
 |---|---|
-| Transceptor CAN | TX→GPIO27, RX→GPIO26, SE→GPIO23 |
-| Tarjeta SD (SPI) | MISO→GPIO2, MOSI→GPIO15, CLK→GPIO14, CS→GPIO13 |
-| Botón | GPIO0 (pull-up interno) |
-| LED NeoPixel (WS2812) | GPIO4 |
-| Habilitación 5V | GPIO16 |
-| RS485 (opcional) | EN→GPIO17, TX→GPIO22, RX→GPIO21, SE→GPIO19 |
+| Transceptor CAN (TJA1051T) | TX→GPIO39, RX→GPIO40 |
+| Tarjeta SD (SPI) | MISO→GPIO4, MOSI→GPIO7, SCLK→GPIO5, CS→GPIO6 |
+| Botón (contacto HV) | GPIO0 (pull-up interno) |
+| LED NeoPixel (WS2812) | GPIO48 |
+| Detección de carga | GPIO1 (pull-down) |
+| Contacto HV | GPIO2 (pull-down) |
 
 ## Modos de operación
 
@@ -47,28 +49,82 @@ Bytes  4-11: timestamp   (uint64, BE — 4 bytes superiores = 0, 4 inferiores = 
 Bytes 12-19: payload     (8 bytes, zero-padded)
 ```
 
-## Configuración (`src/config.h`)
+## Configuración (`include/config.h`)
 
 ```cpp
-#define WIFI_SSID     "ESP32_Net"
-#define WIFI_PASS     "secreto1234"
-#define MQTT_SERVER   "10.42.0.1"
-#define MQTT_PORT     2000            // Puerto externo Docker de Mosquitto
-#define MQTT_TOPIC    "test_topic"
-#define MQTT_USER     "admin"
-#define MQTT_PASSWD   "admin"
-#define SERVER_URL    "http://10.42.0.1:8000"
+#define BAUD_RATE 115200
+
+#define BMS_TIMEOUT_MS 2000
+#define BMS_CAN_TIMEOUT_MS 1000
+
+#define CAN_MSG_SIZE 20
+
+#define WIFI_SSID   "ESP32_Net"
+#define WIFI_PASS   "secreto1234"
+
+#define MQTT_SERVER "10.42.0.1"
+#define MQTT_PORT   2000
+#define MQTT_USER   "admin"
+#define MQTT_PASSWD "admin"
+#define MQTT_TOPIC  "test_topic"
 ```
 
 Ajustar la IP al host que sirva `esp32-server` (por ejemplo, la IP asignada por NetworkManager en la red compartida).
 
+## CAN ID defines
+
+| CAN ID | Descripción |
+|---|---|
+| `0x462` | BMS_TX_STATE_3 — Estado actual de la BMS (interceptado automáticamente) |
+| `0x360` | BMS_TX — Control BMS (enviados por el VCU) |
+| `0x1000000A` | BMS_CMD — Comando BMS (enviados por el VCU) |
+| `0x1000000B` | BMS_STATUS — Estado BMS |
+| `0x0C00000A` | ECU_CMD — Comando de par al motor (exterior, 8 bytes) |
+
+## VCU / Máquina de estados del VCU
+
+El firmware incluye una máquina de estados del VCU (Vehicle Control Unit) que gestiona la interacción con la BMS y la ECU del motor:
+
+**Estados del VCU:**
+- `ESP_INIT` → `ESP_STANDBY` → `ESP_TO_IDLE` → `ESP_TO_HV_READY` → `ESP_DRIVE`
+- `ESP_EMERGENCY_TORQUE_CUT` (par de emergencia a 0)
+- `ESP_TO_SHUTDOWN` → `ESP_SHUTDOWN_TO_IDLE` / `ESP_SHUTDOWN_TO_STANDBY`
+- `ESP_CHARGE_TO_IDLE` / `ESP_CHARGE_MODE` (modo carga)
+- `ESP_FAULT` (estado de fallo — requiere reinicio)
+
+**Estados de la BMS (BMS_STATE_t):**
+- `BMS_INIT`, `BMS_POST`, `BMS_STANDBY`, `BMS_IDLE_PRECHARGE`, `BMS_IDLE`
+- `BMS_HV_READY_PRECHARGE`, `BMS_HV_READY`
+- `BMS_HV_AC_CHARGE_PRECHARGE`, `BMS_HV_AC_CHARGE`, `BMS_HV_DC_CHARGE`
+- `BMS_HV_SHUTDOWN`, `BMS_SLEEP`, `BMS_SOFT_FAULT`, `BMS_HARD_FAULT`
+
+**Evolución del estado:**
+- En `ESP_INIT`: estado inicial — inicia transición a `ESP_STANDBY`
+- En `ESP_STANDBY`: envía `BMS_STANDBY` a la BMS. Si hay cargador conectado → `ESP_CHARGE_TO_IDLE`, si hay contacto HV → `ESP_TO_IDLE`
+- En `ESP_TO_IDLE`: envía `BMS_IDLE`, espera confirmación de la BMS (timeout: 2s)
+- En `ESP_TO_HV_READY`: envía `BMS_HV_READY_PRECHARGE`, espera `BMS_HV_READY` (timeout: 4s por precarga física)
+- En `ESP_DRIVE`: envía `BMS_HV_READY`. Si se desconecta HV → `ESP_TO_SHUTDOWN`, si aparece cargador → `ESP_EMERGENCY_TORQUE_CUT`
+- En `ESP_FAULT`: envía `BMS_HV_SHUTDOWN` de forma continua, requiere reinicio para recuperarse
+
+**Watchdog CAN:** Si se pierde la señal CAN de la BMS por más de `BMS_CAN_TIMEOUT_MS` (1s), el VCU entra en `ESP_FAULT` y corta el par de la ECU si estaba en marcha.
+
+**Comandos a la BMS:** Las tramas de control BMS (`0x360`) incluyen un contador E2E de 4 bits (0-15), CRC-8 SAE-J1850 calculado sobre los bytes 1-7, y campos de control de contactores (4 contactores), IMD, y limpieza de fallos.
+
+## Configuración de BMS
+
+```cpp
+#define BMS_TIMEOUT_MS 2000        // Timeout para transiciones de estado BMS
+#define BMS_CAN_TIMEOUT_MS 1000    // Timeout del watchdog CAN (pérdida de señal BMS)
+```
+
 ## Dependencias (gestionadas por PlatformIO)
 
-- `Adafruit NeoPixel` — control del LED WS2812
-- `OneButton` — gestión del botón (click / pulsación larga)
-- `PubSubClient` — cliente MQTT
+- `adafruit/Adafruit NeoPixel` — control del LED WS2812
+- `mathertel/OneButton` — gestión del botón (click / pulsación larga)
+- `knolleary/PubSubClient` — cliente MQTT
 - `SD` + `SPI` — almacenamiento en tarjeta SD
 - `driver/twai.h` — driver CAN nativo del ESP32 (parte del framework Arduino-ESP32)
+- `cantools` — header generado (incluido en `include/nx0002_sts01_a01.h`) para desempaquetado de tramas BMS
 
 ## Compilar y flashear
 
@@ -79,13 +135,14 @@ pio run --target upload
 # O desde VS Code con la extensión PlatformIO
 ```
 
-La plataforma objetivo es `esp32dev` (ESP32 genérico). Ver `platformio.ini` para detalles.
+La plataforma objetivo es `esp32-s3-devkitc-1`. Ver `platformio.ini` para detalles.
 
 ## Tareas FreeRTOS
 
 | Tarea | Core | Prioridad | Función |
 |---|---|---|---|
 | `CAN_Read` | 0 | 5 | Lee tramas del bus CAN y las encola |
+| `VCU_State` | 1 | 4 | Máquina de estados del VCU — gestiona BMS y ECU |
 | `SD_Write` | 1 | 3 | Escribe la cola en SD o realiza el volcado MQTT |
 | `WiFi_Pub` | 1 | 2 | Mantiene la conexión MQTT y publica tramas en tiempo real |
 
