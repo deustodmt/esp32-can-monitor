@@ -3,6 +3,7 @@
 #include "nx0002_sts01_a01.h"
 #include "vcu_states.h"
 
+
 #include "Arduino.h"
 #include "driver/twai.h"
 
@@ -26,6 +27,12 @@ static uint8_t calculate_crc8_j1850(uint8_t *data, size_t length) {
 }
 
 void request_bms_state(BMS_STATE_t desired_state) {
+  static uint32_t bms_state_count = 0;
+  bms_state_count++;
+
+  printf("[%lu] BMS_CMD[%d] Request state=%d (prev:%d)\n", millis(),
+         bms_state_count - 1, desired_state, current_bms_state);
+
   struct nx0002_sts01_a01_bms_rx_ctrl_1_t tx_cmd;
   memset(&tx_cmd, 0, sizeof(tx_cmd));
 
@@ -59,12 +66,28 @@ void request_bms_state(BMS_STATE_t desired_state) {
   can_msg.data_length_code = 8;
   memcpy(can_msg.data, payload, 8);
 
-  twai_transmit(&can_msg, pdMS_TO_TICKS(10));
+  printf("[BMS_CMD] Payload: ");
+  for (int i = 0; i < 8; i++)
+    printf("%02X ", payload[i]);
+  printf("\n");
+
+  esp_err_t ret = twai_transmit(&can_msg, pdMS_TO_TICKS(10));
+  if (ret == ESP_OK) {
+    printf("[BMS_CMD] TX OK: counter=%d, CRC=0x%02X\n", tx_cmd.e2_e_p1_cnt,
+           tx_cmd.e2_e_p1_crc);
+  } else {
+    printf("[BMS_CMD] TX FAILED: error %d\n", ret);
+  }
 
   bms_msg_counter = (bms_msg_counter + 1) % 16;
 }
-
 void request_ecu_torque(int torque_value) {
+  static uint32_t torque_count = 0;
+  torque_count++;
+
+  printf("[%lu] ECU_TORQUE[%d] Request torque=%d\n", millis(), torque_count - 1,
+         torque_value);
+
   twai_message_t tx_msg;
   tx_msg.extd = 1;
   tx_msg.rtr = 0;
@@ -75,5 +98,9 @@ void request_ecu_torque(int torque_value) {
   tx_msg.data[0] = torque_value & 0xFF;
   tx_msg.data[1] = (torque_value >> 8) & 0xFF;
 
-  twai_transmit(&tx_msg, pdMS_TO_TICKS(10));
+  if (twai_transmit(&tx_msg, pdMS_TO_TICKS(10)) == ESP_OK) {
+    printf("[ECU_TORQUE] TX OK\n");
+  } else {
+    printf("[ECU_TORQUE] TX FAILED\n");
+  }
 }
